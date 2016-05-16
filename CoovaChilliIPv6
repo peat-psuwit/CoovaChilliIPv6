@@ -129,6 +129,8 @@ UNDO_RULES=""
 ip6t -A FORWARD -i "$LAN_IF" -j DROP
 
 while true; do
+	debug "$(LC_ALL=C date)"
+
 	# Get all IPv6 clients currently connected
 	# Note that $LAN_IF_V6ADDR contains netmask
 	IPV6_CLIENTS=$(ip -6 neigh show to "$LAN_IF_V6ADDR"| \
@@ -197,6 +199,10 @@ while true; do
 		IFS="$ORIG_IFS"
 		CLIENT=$(echo "$USER"|cut -f1 -d' ')
 		MAC=$(echo "$USER"|cut -f2 -d' ')
+
+		# TODO: Do proper logging for each IPv6 - MAC pair.
+		# For now, use DEBUG mode to log state, including
+		# IPv6 - MAC pairs.
 
 		# If this MAC has recently changed its state, this
 		# client is probably handled above already.
