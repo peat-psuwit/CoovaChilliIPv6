@@ -1,0 +1,199 @@
+#!/bin/bash
+
+set -e
+[ "$DEBUG" = "x" ] && set -x
+
+DELAY=5
+
+ORIG_IFS="$IFS"
+
+debug () {
+	if [ "$DEBUG" != "" ]; then
+		echo "$1" >&2
+	fi
+}
+
+usage () {
+	echo "Usage: $0 {LAN_IF}"
+}
+
+cleanup () {
+	IFS=$'\n'
+	for RULE in ${UNDO_RULES}; do
+		debug "Undo $RULE"
+		IFS="$ORIG_IFS"
+		ip6tables $RULE # Intentionally not quote
+		IFS=$'\n'
+	done
+	IFS="$ORIG_IFS"
+}
+
+trap "cleanup; exit" SIGINT SIGTERM
+
+ip6t () {
+	opt=$1; shift
+
+	UNDO_RULES+=$'\n'"-D $*"
+
+	debug "ip6t: Rule $opt $*"
+	ip6tables $opt $*
+}
+
+undo_rules_for_ipv6 () {
+	RULES_FOR_CLIENT=$(echo "$UNDO_RULES"|grep "$1") || return 0 #no rule
+	IFS=$'\n'
+	for RULE in $RULES_FOR_CLIENT; do
+		debug "Undo $RULE"
+		IFS="$ORIG_IFS"
+		ip6tables $RULE # Intentionally not quote
+		IFS=$'\n'
+	done
+
+	UNDO_RULES=$(echo "$UNDO_RULES"|grep -v "$1")
+}
+
+comply () {
+	local CLIENT="$1"
+	local STATUS="$2"
+
+	undo_rules_for_ipv6 "$CLIENT"
+	case "$STATUS" in
+		pass)
+			debug "Allowing $CLIENT"
+			ip6t -I FORWARD -s "$CLIENT" -j ACCEPT
+			;;
+		dnat|splash)
+			debug "DNAT $CLIENT (not implemented)"
+			# TODO
+			;;
+		*)
+			debug "Droping $CLIENT"
+			# ... by default rule!
+			;;
+	esac
+}
+
+if [ "$1" = "" ]; then
+	usage; exit
+fi
+
+LAN_IF="$1"
+# TODO: What if there are more than 1 address on the interface? Or it does not matter?
+LAN_IF_V6ADDR=$(ip -6 address show dev "$LAN_IF" scope global|awk '$1 ~ /inet6/ {print $2}'|head -1)
+
+if [ "$LAN_IF_V6ADDR" = "" ]; then
+	echo "No IPv6 address found on interface ${LAN_IF}." >&2
+	echo "Please double check that ${LAN_IF} is correctly configured." >&2
+	exit 1
+fi
+
+CHILLI_SOCK=/var/run/chilli."$LAN_IF".sock
+if ! [ -e "$CHILLI_SOCK" ]; then
+	echo "CoovaChilli socket for ${LAN_IF} can't be found." >&2
+	echo "Please double check that ${LAN_IF} is correct." >&2
+	exit 2
+fi
+
+STATE=""
+OLD_STATE=""
+
+IPV6_CLIENTS=""
+OLD_IPV6_CLIENTS=""
+
+UNDO_RULES=""
+
+# Setting rules to block all clients by default. Note that we don't use
+# default policy because there might be other interfaces that need to
+# forward packets.
+# TODO: what about DNAT?
+ip6t -A FORWARD -i "$LAN_IF" -j DROP
+
+while true; do
+	# Get all IPv6 clients currently connected
+	# Note that $LAN_IF_V6ADDR contains netmask
+	IPV6_CLIENTS=$(ip -6 neigh show to "$LAN_IF_V6ADDR"| \
+		awk '/lladdr/ {
+			mac = toupper($5)
+			gsub(/:/, "-", mac)
+			print $1 " " mac
+		}'|sort)
+
+	debug "IPv6 clients:"$'\n'"${IPV6_CLIENTS}"
+
+	# Get state of IPV4 clients currently connected via CoovaChilli
+	STATE=$(chilli_query -s "$CHILLI_SOCK" list|awk '
+		$2 ~ /[0-9]/ {print $1 " " $3}
+		$2 ~ /[a-z]/ {print $1 " " $2}
+	'|sort)
+
+	debug "IPv4 clients state:"$'\n'"${STATE}"
+
+	# Deals with IPv6 users that has disappered from system
+	# including those that changed the MAC
+	DISAPPEARED_IPV6=$(comm -23 <(echo "$OLD_IPV6_CLIENTS") \
+				     <(echo "$IPV6_CLIENTS")| \
+			   cut -f1 -d' ' )
+	for CLIENT in $DISAPPEARED_IPV6; do
+		debug "$CLIENT has disappeared"
+		undo_rules_for_ipv6 "$CLIENT"
+	done
+
+	# Deals with IPv4 users that has disappeared from system
+	DISAPPERED_MAC=$(comm -23 <(echo "$OLD_STATE"|cut -f1 -d' ') \
+				  <(echo "$STATE"|cut -f1 -d' ') )
+	for MAC in $DISAPPERED_MAC; do
+		CLIENTS=$(echo "$OLD_IPV6_CLIENTS"|grep "$MAC")
+		CLIENTS+=$(echo "$IPV6_CLIENTS"|grep "$MAC")
+		CLIENTS=$(echo "$CLIENTS"|sort|uniq -u|cut -f1 -d' ')
+
+		for CLIENT in $CLIENTS; do
+			debug "$CLIENT has disappeared"
+			undo_rules_for_ipv6 "$CLIENT"
+		done
+	done
+
+	# Deal with changes in STATE
+	DIFF_STATE=$(comm -13 <(printf "%s" "$OLD_STATE") \
+			      <(printf "%s" "$STATE") )
+	IFS=$'\n'
+	for USER in $DIFF_STATE; do
+		IFS="$ORIG_IFS"
+
+		MAC=$(echo "$USER"|cut -f1 -d' ')
+		STATUS=$(echo "$USER"|cut -f2 -d' ')
+
+		USER_IPV6=$(echo "$IPV6_CLIENTS"|grep "$MAC"|cut -f1 -d' ')
+		for CLIENT in $USER_IPV6; do
+			comply "$CLIENT" "$STATUS"
+		done
+	done
+
+	# Deal with newly appeared IPv6 address
+	# including those that changed the MAC
+	APPEARED_IPV6=$(comm -13 <(echo "$OLD_IPV6_CLIENTS") \
+				     <(echo "$IPV6_CLIENTS") )
+	IFS=$'\n'
+	for USER in $APPEARED_IPV6; do
+		IFS="$ORIG_IFS"
+		CLIENT=$(echo "$USER"|cut -f1 -d' ')
+		MAC=$(echo "$USER"|cut -f2 -d' ')
+
+		# If this MAC has recently changed its state, this
+		# client is probably handled above already.
+		if ! echo "$DIFF_STATE"|grep -q "$MAC"; then
+			STATUS=$(echo "$STATE"|grep "$MAC"|cut -f2 -d' ')
+			comply "$CLIENT" "$STATUS"
+		fi
+		IFS=$'\n'
+	done
+	IFS="$ORIG_IFS"
+
+
+	debug "================================"
+
+	OLD_STATE="$STATE"
+	OLD_IPV6_CLIENTS="$IPV6_CLIENTS"
+	IFS=$'\n'
+
+	sleep "$DELAY"
+done
