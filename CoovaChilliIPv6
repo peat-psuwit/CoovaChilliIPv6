@@ -219,8 +219,8 @@ while true; do
 
 	# This has been proven to helps this machine to find client's MAC
 	# for newly acquired temporary address.
-	ping6 -c2 -I $(echo "$LAN_IF_V6ADDR"|cut -f1 -d'/') ff02::1 \
-							2>&1 >/dev/null &
+	ping6 -c2 -I "$(echo "$LAN_IF_V6ADDR"|cut -f1 -d'/')" ff02::1 \
+							>/dev/null 2>&1 &
 
 	OLD_STATE="$STATE"
 	OLD_IPV6_CLIENTS="$IPV6_CLIENTS"
