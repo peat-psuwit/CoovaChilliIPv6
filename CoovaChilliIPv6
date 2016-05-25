@@ -176,8 +176,8 @@ while true; do
 	done
 
 	# Deal with changes in STATE
-	DIFF_STATE=$(comm -13 <(printf "%s" "$OLD_STATE") \
-			      <(printf "%s" "$STATE") )
+	DIFF_STATE=$(comm -13 <(echo "$OLD_STATE") \
+			      <(echo "$STATE") )
 	IFS=$'\n'
 	for USER in $DIFF_STATE; do
 		IFS="$ORIG_IFS"
