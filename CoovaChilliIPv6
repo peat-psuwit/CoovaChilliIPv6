@@ -63,11 +63,12 @@ undo_rules_for_ipv6 () {
 	RULES_FOR_CLIENT=$(echo "$UNDO_RULES"|grep "$1") || return 0 #no rule
 	IFS=$'\n'
 	for RULE in $RULES_FOR_CLIENT; do
-		debug "Undo $RULE"
 		IFS="$ORIG_IFS"
+		debug "Undo $RULE"
 		ip6tables $RULE # Intentionally not quote
 		IFS=$'\n'
 	done
+	IFS="$ORIG_IFS"
 
 	UNDO_RULES=$(echo "$UNDO_RULES"|grep -v "$1")
 }
@@ -188,7 +189,9 @@ while true; do
 		for CLIENT in $USER_IPV6; do
 			comply "$CLIENT" "$STATUS"
 		done
+		IFS=$'\n'
 	done
+	IFS="$ORIG_IFS"
 
 	# Deal with newly appeared IPv6 address
 	# including those that changed the MAC
@@ -224,7 +227,6 @@ while true; do
 
 	OLD_STATE="$STATE"
 	OLD_IPV6_CLIENTS="$IPV6_CLIENTS"
-	IFS=$'\n'
 
 	sleep "$DELAY"
 done
