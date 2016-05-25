@@ -48,7 +48,15 @@ cleanup () {
 	IFS="$ORIG_IFS"
 }
 
-trap "cleanup; exit" SIGINT SIGTERM
+trap_err () {
+	local RC="$?"
+
+	echo "Unexpected error happens! Cleanning up" >&2
+	debug "The return code is: $RC"
+}
+
+trap trap_err ERR
+trap "cleanup; exit" SIGINT SIGTERM EXIT
 
 ip6t () {
 	opt=$1; shift
