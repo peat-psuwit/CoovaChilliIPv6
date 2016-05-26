@@ -232,8 +232,8 @@ while true; do
 	# This will get list of those address, and try to ping it.
 	# TODO: reduce frequency of this detection.
 	FAILED_IPV6=$(ip -6 neigh show to "$LAN_IF_V6ADDR"|awk '
-									/FAILED/ {print $1}
-							')
+		/FAILED/ {print $1}
+	')
 	for CLIENT in $FAILED_IPV6; do
 		ping6 -c1 "$CLIENT" >/dev/null 2>&1 &
 	done
