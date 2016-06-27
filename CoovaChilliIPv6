@@ -173,8 +173,8 @@ while true; do
 	DISAPPERED_MAC=$(comm -23 <(echo "$OLD_STATE"|cut -f1 -d' ') \
 				  <(echo "$STATE"|cut -f1 -d' ') )
 	for MAC in $DISAPPERED_MAC; do
-		CLIENTS=$(echo "$OLD_IPV6_CLIENTS"|grep "$MAC")
-		CLIENTS+=$(echo "$IPV6_CLIENTS"|grep "$MAC")
+		CLIENTS=$(echo "$OLD_IPV6_CLIENTS"|grep "$MAC") || true
+		CLIENTS+=$(echo "$IPV6_CLIENTS"|grep "$MAC") || true
 		CLIENTS=$(echo "$CLIENTS"|sort|uniq -u|cut -f1 -d' ')
 
 		for CLIENT in $CLIENTS; do
