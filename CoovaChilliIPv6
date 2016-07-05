@@ -140,7 +140,7 @@ while true; do
 			print mac " " $2
 	}'|sort)
 
-	debug "IPv4 clients state:"$'\n'"${STATE}"
+	debug "IPv4 clients state:"$'\n'"${STATE}"$'\n'
 
 	# Deals with IPv4 users that has disappeared from system
 	DISAPPERED_MAC=$(comm -23 <(echo "$OLD_STATE"|cut -f1 -d' ') \
@@ -162,7 +162,7 @@ while true; do
 		STATUS=$(echo "$USER"|cut -f2 -d' ')
 
 		debug "$CLIENT_MAC appeared/changed its state to $STATUS"
-		comply_mac "$CLIENT_MAC" "$STATUS"
+		comply_for_mac "$CLIENT_MAC" "$STATUS"
 
 		IFS=$'\n'
 	done
