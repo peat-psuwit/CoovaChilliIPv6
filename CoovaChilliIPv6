@@ -109,11 +109,11 @@ fi
 LAN_IF="$1"
 
 CHILLI_SOCK=/var/run/chilli."$LAN_IF".sock
-while ! [ -S "$CHILLI_SOCK" ]; then
+while ! [ -S "$CHILLI_SOCK" ]; do
 	echo "CoovaChilli socket for ${LAN_IF} can't be found." >&2
 	echo "Waiting $DELAY seconds..." >&2
 	sleep "$DELAY"
-fi
+done
 
 STATE=""
 OLD_STATE=""
