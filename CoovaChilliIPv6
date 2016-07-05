@@ -56,7 +56,7 @@ trap_err () {
 }
 
 trap trap_err ERR
-trap "cleanup; exit" SIGINT SIGTERM EXIT
+trap "cleanup; exit" EXIT
 
 ip6t () {
 	opt=$1; shift
