@@ -146,10 +146,9 @@ while true; do
 	DISAPPERED_MAC=$(comm -23 <(echo "$OLD_STATE"|cut -f1 -d' ') \
 				  <(echo "$STATE"|cut -f1 -d' ') )
 
-		for CLIENT_MAC in $DISAPPERED_MAC; do
-			debug "$CLIENT_MAC has disappeared"
-			undo_rules_for_mac "$CLIENT_MAC"
-		done
+	for CLIENT_MAC in $DISAPPERED_MAC; do
+		debug "$CLIENT_MAC has disappeared"
+		undo_rules_for_mac "$CLIENT_MAC"
 	done
 
 	# Deal with changes in STATE
