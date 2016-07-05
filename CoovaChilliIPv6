@@ -89,7 +89,7 @@ comply_for_mac () {
 	case "$STATUS" in
 		pass)
 			debug "Allowing $CLIENT_MAC"
-			ip6t -I FORWARD --mac-source "$CLIENT_MAC" -j ACCEPT
+			ip6t -I FORWARD -i "$LAN_IF" -m mac --mac-source "$CLIENT_MAC" -j ACCEPT
 			;;
 		dnat|splash)
 			debug "DNAT $CLIENT_MAC (not implemented)"
